@@ -1,22 +1,21 @@
 # latex2sre
 
-CLI tool to convert LaTeX math expressions to spoken math text using MathJax v4 and Speech Rule Engine (SRE v4+/5).
+CLI tool to convert LaTeX math expressions to spoken math text using MathJax v4 and Speech Rule Engine (SRE v5). Now supports truly single-file SEA distribution with embedded SRE mathmaps.
 
-Features:
-- Parse LaTeX to MathML with MathJax v4
-- Convert MathML to speech via SRE (MathSpeak, ClearSpeak; locales, styles, modality)
-- Batch processing from files or stdin; streaming mode
-- Caching of repeated conversions
+Highlights:
+- MathJax v4 TeX -> MathML conversion, SRE v5 speech (MathSpeak, ClearSpeak, Nemeth, multilocale)
+- Single-file executable via Node SEA with embedded mathmaps assets (no node_modules at runtime)
+- Dev-mode filesystem fallback for SRE JSON (unchanged developer experience)
+- Caching for repeated conversions; lazy locale loading
 - Verbose logging and JSON config overrides
-- Bundled single-file CJS via esbuild and packaged as a Node SEA binary
 
-## Install (development)
+## Installation (Development)
 
 ```
 npm install
 ```
 
-## Usage
+## Quick Start (Development)
 
 - Single expression:
 ```
@@ -47,36 +46,49 @@ Flags:
 - --no-cache                 Disable caching
 - --config <file>            JSON config merged into SRE options
 - --verbose                  Verbose logging
-- --batch-delimiter <char>   Custom delimiter for batch files (default newline)
+- --batch-delimiter <char>   Custom delimiter for batch files (default: newline)
 - --stream                   Stream results line by line
 
-## SEA Binary
+## Building the Single-File SEA Binary
 
-Build a single executable for your platform (Node v22+ required):
+Requirements: Node v22+ (SEA), esbuild, postject (installed via devDependencies).
+
+Command:
 ```
 npm run build:sea
 ```
-This produces:
-- `bundled-app.cjs` (bundled CJS)
-- `latex2sre` (SEA binary)
-- `mathmaps/` (copied SRE rule assets)
+This performs:
+1. Bundle to CommonJS using esbuild (bundled-app.cjs)
+2. Discover and embed SRE mathmaps into the SEA blob (build-assets.cjs + sea-config.json)
+3. Generate a manifest (dist/mathmaps-manifest.json) to list embedded mathmaps
+4. Create SEA blob (sea-prep.blob) and inject into a Node executable copy -> ./latex2sre
 
 Run the binary:
 ```
-./latex2sre "E = mc^2" --domain clearspeak --locale en
+./latex2sre "E=mc^2" --domain clearspeak --locale en --verbose
 ```
 
-Note: The SEA binary looks for a `mathmaps/` directory next to the executable. This repository’s build script copies it automatically. If you relocate the binary, copy the `mathmaps/` folder alongside it, or set the environment variable `SRE_JSON_PATH` to point at the folder containing the locale JSON (e.g., en.json, base.json).
+Behavior at runtime:
+- The binary extracts the embedded mathmaps (from SEA assets) to a temp folder and sets SRE_JSON_PATH automatically
+- SRE loads its JSON from that path; no node_modules required
+- Experimental SEA warnings are suppressed in sea-config.json
+
+## Rationale for Embedded Assets
+
+Previously, SEA builds required shipping an external `mathmaps/` folder, breaking truly single-file distribution. This migration embeds all required SRE mathmaps JSONs directly into the SEA blob. At runtime, the binary extracts them to a temporary directory and points SRE to that path. Benefits:
+- Single-file distribution: portable executable without external data
+- Robustness: SRE continues to use standard filesystem JSON loading
+- Performance: lazy, cached locale loading; startup extraction overhead is minimal
+
+## Cross-Platform Notes
+
+- The SEA binary keeps executable mode on Unix (chmod +x) and runs on the platform you built it on.
+- Path handling and temp directory extraction work on Linux, macOS, and Windows.
 
 ## Tests
 
-Run smoke tests:
 ```
 npm test
 ```
 
-## Implementation Notes
-
-- MathJax is initialized lazily and the TeX input is statically imported (`mathjax/input/tex.js`) to avoid dynamic loader issues when bundling.
-- SRE is loaded dynamically at runtime after we set `SRE_JSON_PATH`, ensuring mathmaps can be located in SEA and bundled modes.
-- For truly single-file distribution without any external assets, you would need to embed SRE mathmaps into the bundle and provide a custom SRE loader; this project opts for the simpler approach of shipping the small `mathmaps/` directory alongside the binary.
+All existing tests pass with SEA embedding enabled.
