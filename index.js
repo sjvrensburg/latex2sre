@@ -9,6 +9,7 @@ import { promisify } from 'util';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
 import { Command } from 'commander';
+import { createRequire } from 'module';
 
 // MathJax v4 packaged build. Use the global MathJax object and access internals.
 // Prefer CJS entry to simplify bundling
@@ -35,8 +36,19 @@ try {
   if (fs.existsSync(candidate)) {
     process.env.SRE_JSON_PATH = candidate;
     global.SRE_JSON_PATH = candidate;
+  } else {
+    // dev fallback: resolve from node_modules
+    const req = createRequire(import.meta.url);
+    const pkg = req.resolve('speech-rule-engine/package.json');
+    const nmCandidate = path.join(path.dirname(pkg), 'lib', 'mathmaps');
+    if (fs.existsSync(nmCandidate)) {
+      process.env.SRE_JSON_PATH = nmCandidate;
+      global.SRE_JSON_PATH = nmCandidate;
+    }
   }
-} catch {}
+} catch (e) {
+  // ignore
+}
 
 
 // Prepare MathJax (initialized lazily for SEA compatibility)
@@ -90,10 +102,21 @@ const verbose = options.verbose;
 
 async function loadSRE() {
   if (sreSetupEngine) return;
-  const mod = await import('speech-rule-engine/js/common/system.js');
-  sreSetupEngine = mod.setupEngine;
-  sreEngineReadyFn = mod.engineReady;
-  sreToSpeech = mod.toSpeech;
+  // Prefer the package's default export which sets SRE_JSON_PATH automatically.
+  let mod;
+  try {
+    mod = await import('speech-rule-engine');
+    const SRE = mod.default || mod;
+    sreSetupEngine = SRE.setupEngine;
+    sreEngineReadyFn = SRE.engineReady;
+    sreToSpeech = SRE.toSpeech;
+  } catch (e) {
+    // Fallback to direct path if needed
+    const sys = await import('speech-rule-engine/js/common/system.js');
+    sreSetupEngine = sys.setupEngine;
+    sreEngineReadyFn = sys.engineReady;
+    sreToSpeech = sys.toSpeech;
+  }
 }
 
 function log(...args) { if (verbose) console.error(...args); }
