@@ -1,0 +1,4 @@
+{
+  "main": "bundled-app.cjs",
+  "output": "sea-prep.blob"
+}
