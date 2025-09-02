@@ -145,4 +145,5 @@ latex2sre
 mathmaps/
 input.txt
 
-\n# OpenHands workspace artifacts\n.openhands/
+# OpenHands workspace artifacts
+.openhands/

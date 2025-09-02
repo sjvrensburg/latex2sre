@@ -9,10 +9,11 @@
   },
   "scripts": {
     "test": "node test.js",
+    "build:assets": "node build-assets.cjs",
     "build:cjs": "esbuild index.js --bundle --platform=node --format=cjs --outfile=bundled-app.cjs --minify",
     "build:sea:blob": "node --experimental-sea-config sea-config.json",
     "build:sea:inject": "npx postject latex2sre NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
-    "build:sea": "npm run build:cjs && node -e \"const fs=require('fs'); fs.copyFileSync(process.execPath, 'latex2sre');\" && npm run build:sea:blob && npm run build:sea:inject && chmod +x latex2sre && cp -r node_modules/speech-rule-engine/lib/mathmaps ./mathmaps || true"
+    "build:sea": "npm run build:cjs && npm run build:assets && node -e \"const fs=require('fs'); fs.copyFileSync(process.execPath, 'latex2sre');\" && npm run build:sea:blob && npm run build:sea:inject && chmod +x latex2sre"
   },
   "repository": {
     "type": "git",

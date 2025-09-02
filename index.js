@@ -22,6 +22,82 @@ let sreSetupEngine = null;
 let sreEngineReadyFn = null;
 let sreToSpeech = null;
 
+// SEA detection and asset access
+let seaGetAsset = null;
+try {
+  if (typeof globalThis !== 'undefined' && globalThis.sea && typeof globalThis.sea.getAsset === 'function') {
+    seaGetAsset = globalThis.sea.getAsset;
+  }
+} catch {}
+if (!seaGetAsset) {
+  try {
+    // eslint-disable-next-line no-undef
+    const mod = typeof require !== 'undefined' ? require('node:sea') : null;
+    if (mod && typeof mod.getAsset === 'function') {
+      seaGetAsset = mod.getAsset.bind(mod);
+    }
+  } catch {}
+}
+const isSEA = !!seaGetAsset;
+
+// Cache for embedded JSON assets by locale
+const mathmapCache = new Map();
+
+function textFromBuffer(buf) {
+  if (!buf) return '';
+  if (typeof buf === 'string') return buf;
+  if (buf instanceof Uint8Array || (buf && typeof buf.byteLength === 'number')) {
+    return new TextDecoder('utf-8').decode(buf);
+  }
+  return String(buf);
+}
+
+async function loadLocaleFromAssets(locale) {
+  // Returns JSON string for the given locale from embedded SEA assets (with caching)
+  if (mathmapCache.has(locale)) return mathmapCache.get(locale);
+  if (!seaGetAsset) throw new Error('SEA assets not available');
+  const assetName = `mathmaps/${locale}.json`;
+  const buf = seaGetAsset(assetName);
+  if (verbose) {
+    const len = buf && (buf.byteLength || buf.length) || 0;
+    console.error(`[SEA] getAsset(${assetName}) -> ${buf ? 'hit' : 'miss'} length=${len}`);
+  }
+  const str = textFromBuffer(buf);
+  mathmapCache.set(locale, str);
+  return str;
+}
+
+async function loadLocaleFromFs(locale) {
+  if (mathmapCache.has(locale)) return mathmapCache.get(locale);
+  const base = getFsJsonPath();
+  if (!base) throw new Error('SRE JSON path not found');
+  const file = path.join(base, `${locale}.json`);
+  if (verbose) console.error(`[FS] reading ${file}`);
+  const str = await fs.promises.readFile(file, 'utf8');
+  mathmapCache.set(locale, str);
+  return str;
+}
+
+async function loadLocaleAny(locale) {
+  if (mathmapCache.has(locale)) return mathmapCache.get(locale);
+  if (seaGetAsset && !process.env.SRE_JSON_PATH) return loadLocaleFromAssets(locale);
+  return loadLocaleFromFs(locale);
+}
+
+function getFsJsonPath() {
+  // Prefer env var discovered earlier; otherwise resolve from node_modules
+  if (process.env.SRE_JSON_PATH || global.SRE_JSON_PATH) {
+    return process.env.SRE_JSON_PATH || global.SRE_JSON_PATH;
+  }
+  try {
+    const req = createRequire(import.meta.url);
+    const pkg = req.resolve('speech-rule-engine/package.json');
+    return path.join(path.dirname(pkg), 'lib', 'mathmaps');
+  } catch {
+    return undefined;
+  }
+}
+
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
 
@@ -31,24 +107,73 @@ const EX = 8;           // size of an ex in pixels
 const WIDTH = 80 * EM;  // width of container for linebreaking
 // Try to set SRE JSON path to be near the executable (for SEA runtime)
 try {
-  const exeDir = path.dirname(process.execPath);
-  const candidate = path.join(exeDir, 'mathmaps');
-  if (fs.existsSync(candidate)) {
-    process.env.SRE_JSON_PATH = candidate;
-    global.SRE_JSON_PATH = candidate;
-  } else {
-    // dev fallback: resolve from node_modules
-    const req = createRequire(import.meta.url);
-    const pkg = req.resolve('speech-rule-engine/package.json');
-    const nmCandidate = path.join(path.dirname(pkg), 'lib', 'mathmaps');
-    if (fs.existsSync(nmCandidate)) {
-      process.env.SRE_JSON_PATH = nmCandidate;
-      global.SRE_JSON_PATH = nmCandidate;
+  // In SEA we don't rely on filesystem mathmaps; they are embedded.
+  if (!isSEA) {
+    const exeDir = path.dirname(process.execPath);
+    const candidate = path.join(exeDir, 'mathmaps');
+    if (fs.existsSync(candidate)) {
+      process.env.SRE_JSON_PATH = candidate;
+      global.SRE_JSON_PATH = candidate;
+    } else {
+      // dev fallback: resolve from node_modules
+      const req = createRequire(import.meta.url);
+      const pkg = req.resolve('speech-rule-engine/package.json');
+      const nmCandidate = path.join(path.dirname(pkg), 'lib', 'mathmaps');
+      if (fs.existsSync(nmCandidate)) {
+        process.env.SRE_JSON_PATH = nmCandidate;
+        global.SRE_JSON_PATH = nmCandidate;
+      }
     }
   }
 } catch (e) {
   // ignore
 }
+
+// If running as SEA, extract embedded mathmaps assets to a temp dir and use FS loader.
+let extractedDir = null;
+async function ensureExtractedAssets() {
+  if (process.env.SRE_JSON_PATH) { if (verbose) console.error('[SEA] assets already extracted at', process.env.SRE_JSON_PATH); return; }
+  // Ensure we have access to SEA getAsset at runtime
+  if (!seaGetAsset) { if (verbose) console.error('[SEA] getAsset not available initially; trying node:sea');
+    try {
+      const req = createRequire(import.meta.url);
+      const mod = (0, Function)('req', "try { return req('node:sea'); } catch (e) { return null; }")(req);
+      if (mod && typeof mod.getAsset === 'function') {
+        seaGetAsset = mod.getAsset.bind(mod);
+        if (verbose) console.error('[SEA] node:sea.getAsset bound');
+      }
+    } catch {}
+  }
+  if (!seaGetAsset) { if (verbose) console.error('[SEA] getAsset still unavailable; skip extraction'); return; }
+  try {
+    const manifestBuf = seaGetAsset('mathmaps/manifest.json');
+    const mlen = manifestBuf && (manifestBuf.byteLength || manifestBuf.length) || 0;
+    if (verbose) console.error(`[SEA] manifest fetch length=${mlen}`);
+    const manifestStr = textFromBuffer(manifestBuf);
+    const manifest = JSON.parse(manifestStr);
+    const os = await import('os');
+    const tmpBase = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'latex2sre-'));
+    const destDir = path.join(tmpBase, 'mathmaps');
+    await fs.promises.mkdir(destDir, { recursive: true });
+    let count = 0;
+    for (const file of manifest.files || []) {
+      const abuf = seaGetAsset(`mathmaps/${file}`);
+      const alen = abuf && (abuf.byteLength || abuf.length) || 0;
+      if (verbose) console.error(`[SEA] asset ${file} length=${alen}`);
+      if (!abuf) continue;
+      const out = path.join(destDir, file);
+      await fs.promises.writeFile(out, new Uint8Array(abuf));
+      count++;
+    }
+    process.env.SRE_JSON_PATH = destDir;
+    global.SRE_JSON_PATH = destDir;
+    extractedDir = destDir;
+    if (verbose) console.error(`[SEA] extracted mathmaps to ${destDir} (${count} files)`);
+  } catch (e) {
+    if (verbose) console.error('[SEA] extraction failed:', e && e.message ? e.message : e);
+  }
+}
+
 
 
 // Prepare MathJax (initialized lazily for SEA compatibility)
@@ -56,6 +181,16 @@ let adaptor, tex, html, visitor, toMathML, STATE;
 async function setupMathJax() {
   if (html) return; // already initialized
   await MathJax.init({});
+  if (options.verbose) {
+    console.error(`[Boot] SEA available: ${!!seaGetAsset}`);
+    try {
+      const req = createRequire(import.meta.url);
+      const mod = (0, Function)('req', "try { return req('node:sea'); } catch (e) { return null; }")(req);
+      console.error(`[Boot] node:sea module: ${!!mod}`);
+    } catch {}
+    console.error(`[Boot] SRE_JSON_PATH before setup: ${process.env.SRE_JSON_PATH || ''}`);
+  }
+
   const lite = MathJax._.adaptors.liteAdaptor;
   const htmlTs = MathJax._.handlers.html_ts;
   adaptor = lite.liteAdaptor({ fontSize: EM });
@@ -103,20 +238,11 @@ const verbose = options.verbose;
 async function loadSRE() {
   if (sreSetupEngine) return;
   // Prefer the package's default export which sets SRE_JSON_PATH automatically.
-  let mod;
-  try {
-    mod = await import('speech-rule-engine');
-    const SRE = mod.default || mod;
-    sreSetupEngine = SRE.setupEngine;
-    sreEngineReadyFn = SRE.engineReady;
-    sreToSpeech = SRE.toSpeech;
-  } catch (e) {
-    // Fallback to direct path if needed
-    const sys = await import('speech-rule-engine/js/common/system.js');
-    sreSetupEngine = sys.setupEngine;
-    sreEngineReadyFn = sys.engineReady;
-    sreToSpeech = sys.toSpeech;
-  }
+  // Use CJS System API directly to ensure custom loader is respected.
+  const sys = await import('speech-rule-engine/cjs/common/system.js');
+  sreSetupEngine = sys.setupEngine;
+  sreEngineReadyFn = sys.engineReady;
+  sreToSpeech = sys.toSpeech;
 }
 
 function log(...args) { if (verbose) console.error(...args); }
@@ -136,20 +262,50 @@ if (options.config) {
 
 // Setup SRE with options
 async function setupSRE() {
+  // If SEA runtime, attempt to extract embedded assets to a temp dir and use FS loader.
+  await ensureExtractedAssets();
   await loadSRE();
   const sreOptions = {
     locale: options.locale,
     domain: options.domain,
     style: options.style,
     modality: options.modality,
-    json: process.env.SRE_JSON_PATH || global.SRE_JSON_PATH, // hint to SRE where to find mathmaps
+    // Provide a custom loader (still supports dev mode caching)
+    custom: (loc) => loadLocaleAny(loc),
+    // If we have extracted assets set SRE JSON path explicitly
+    ...(getFsJsonPath() ? { json: getFsJsonPath() } : {}),
     ...customOptions,
   };
 
-  log('Setting up SRE with options:', sreOptions);
+  if (verbose && seaGetAsset) {
+    try {
+      const b = seaGetAsset('mathmaps/base.json');
+      const e = seaGetAsset(`mathmaps/${options.locale}.json`);
+      const blen = b && (b.byteLength || b.length) || 0;
+      const elen = e && (e.byteLength || e.length) || 0;
+      console.error(`[SEA] probe assets: base.json=${blen} bytes, ${options.locale}.json=${elen} bytes`);
+    } catch (e) {
+      console.error('[SEA] probe error:', e && e.message ? e.message : e);
+    }
+  }
+
+  log('Setting up SRE with options:', { ...sreOptions, custom: !!sreOptions.custom });
 
   try {
     await sreSetupEngine(sreOptions);
+    // Inspect Engine internals to verify customLoader registration in dev/bundled contexts
+    if (verbose) {
+      try {
+        const engMod = await import('speech-rule-engine/cjs/common/engine.js');
+        const Engine = engMod.Engine || (engMod.default && engMod.default.Engine);
+        if (Engine && typeof Engine.getInstance === 'function') {
+          const inst = Engine.getInstance();
+          console.error('[Debug] Engine customLoader set:', !!inst.customLoader);
+        }
+      } catch (e) {
+        console.error('[Debug] Engine inspect error:', e && e.message ? e.message : e);
+      }
+    }
     await sreEngineReadyFn();
     log('SRE setup complete');
   } catch (err) {
