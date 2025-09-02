@@ -78,7 +78,7 @@ const cache = new Map();
 // CLI setup
 const program = new Command();
 program
-  .name('latex-to-speech')
+  .name('latex2sre')
   .description('Convert LaTeX math expressions to spoken math text using MathJax and SRE')
   .version('1.0.0')
   .argument('[latex]', 'LaTeX math expression (or use --input or stdin)')
