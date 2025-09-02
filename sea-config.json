@@ -1,4 +1,24 @@
 {
   "main": "bundled-app.cjs",
-  "output": "sea-prep.blob"
+  "output": "sea-prep.blob",
+  "disableExperimentalSEAWarning": true,
+  "assets": {
+    "mathmaps/af.json": "node_modules/speech-rule-engine/lib/mathmaps/af.json",
+    "mathmaps/base.json": "node_modules/speech-rule-engine/lib/mathmaps/base.json",
+    "mathmaps/ca.json": "node_modules/speech-rule-engine/lib/mathmaps/ca.json",
+    "mathmaps/da.json": "node_modules/speech-rule-engine/lib/mathmaps/da.json",
+    "mathmaps/de.json": "node_modules/speech-rule-engine/lib/mathmaps/de.json",
+    "mathmaps/en.json": "node_modules/speech-rule-engine/lib/mathmaps/en.json",
+    "mathmaps/es.json": "node_modules/speech-rule-engine/lib/mathmaps/es.json",
+    "mathmaps/euro.json": "node_modules/speech-rule-engine/lib/mathmaps/euro.json",
+    "mathmaps/fr.json": "node_modules/speech-rule-engine/lib/mathmaps/fr.json",
+    "mathmaps/hi.json": "node_modules/speech-rule-engine/lib/mathmaps/hi.json",
+    "mathmaps/it.json": "node_modules/speech-rule-engine/lib/mathmaps/it.json",
+    "mathmaps/ko.json": "node_modules/speech-rule-engine/lib/mathmaps/ko.json",
+    "mathmaps/nb.json": "node_modules/speech-rule-engine/lib/mathmaps/nb.json",
+    "mathmaps/nemeth.json": "node_modules/speech-rule-engine/lib/mathmaps/nemeth.json",
+    "mathmaps/nn.json": "node_modules/speech-rule-engine/lib/mathmaps/nn.json",
+    "mathmaps/sv.json": "node_modules/speech-rule-engine/lib/mathmaps/sv.json",
+    "mathmaps/manifest.json": "dist/mathmaps-manifest.json"
+  }
 }
