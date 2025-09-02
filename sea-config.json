@@ -1,6 +1,7 @@
 {
   "main": "bundled-app.cjs",
   "output": "sea-prep.blob",
+  "disableExperimentalSEAWarning": true,
   "assets": {
     "mathmaps/af.json": "node_modules/speech-rule-engine/lib/mathmaps/af.json",
     "mathmaps/base.json": "node_modules/speech-rule-engine/lib/mathmaps/base.json",
