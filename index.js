@@ -215,7 +215,7 @@ const program = new Command();
 program
   .name('latex2sre')
   .description('Convert LaTeX math expressions to spoken math text using MathJax and SRE')
-  .version('1.0.0')
+  .version('1.1.0')
   .argument('[latex]', 'LaTeX math expression (or use --input or stdin)')
   .option('-i, --input <file>', 'Input file containing LaTeX expressions (one per line for batch)')
   .option('-o, --output <file>', 'Output file (appends if batch)')
