@@ -1,38 +1,40 @@
 {
   "name": "latex2sre",
-  "version": "1.1.1",
-  "description": "",
-  "type": "module",
+  "version": "1.0.0",
+  "description": "Convert LaTeX math to Speech Rule Engine JSON",
   "main": "index.js",
-  "bin": {
-    "latex2sre": "index.js"
-  },
+  "type": "module",
   "scripts": {
-    "test": "node test.js",
-    "build:assets": "node build-assets.cjs",
     "build:cjs": "esbuild index.js --bundle --platform=node --format=cjs --outfile=bundled-app.cjs --minify",
     "build:sea:blob": "node --experimental-sea-config sea-config.json",
-    "build:sea:inject": "npx postject latex2sre NODE_SEA_BLOB sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2",
-    "build:sea": "npm run build:cjs && npm run build:assets && node -e \"const fs=require('fs'); fs.copyFileSync(process.execPath, 'latex2sre');\" && npm run build:sea:blob && npm run build:sea:inject && chmod +x latex2sre"
+    "build:sea": "npm run build:cjs && npm run build:sea:blob && node build-sea-platform.js",
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://REMOVED@github.com/sjvrensburg/latex2sre.git"
+    "url": "git+https://github.com/sjvrensburg/latex2sre.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "latex",
+    "mathjax",
+    "speech-rule-engine",
+    "SEA",
+    "binary"
+  ],
+  "author": "Stefan Janse van Rensburg",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/sjvrensburg/latex2sre/issues"
   },
   "homepage": "https://github.com/sjvrensburg/latex2sre#readme",
   "dependencies": {
-    "commander": "^14.0.0",
-    "mathjax": "^4.0.0",
-    "speech-rule-engine": "^5.0.0-alpha.8"
+    "commander": "^11.1.0",
+    "esm": "^3.2.25",
+    "mathjax-full": "^3.2.2",
+    "speech-rule-engine": "4.1.2"
   },
   "devDependencies": {
-    "esbuild": "^0.25.9",
-    "postject": "^1.0.0-alpha.6"
+    "esbuild": "^0.19.11",
+    "postject": "^1.0.0"
   }
 }

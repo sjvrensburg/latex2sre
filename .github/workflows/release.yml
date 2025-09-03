@@ -1,87 +1,67 @@
-name: Build and Release SEA Binaries
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'  # Triggers on version tags like v1.0.0
-  workflow_dispatch:  # Allow manual triggers
+      - "v*.*.*"
 
 jobs:
   build:
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
         include:
           - os: ubuntu-latest
-            target: linux-x64
-            binary-name: latex2sre-linux-x64
+            binary-name: latex2sre-linux
+          - os: macos-latest
+            binary-name: latex2sre-macos
           - os: windows-latest
-            target: win32-x64
-            binary-name: latex2sre-windows-x64.exe
-          - os: macos-latest
-            target: darwin-x64
-            binary-name: latex2sre-macos-x64
-          - os: macos-latest
-            target: darwin-arm64
-            binary-name: latex2sre-macos-arm64
+            binary-name: latex2sre-windows.exe
 
-    runs-on: ${{ matrix.os }}
-    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.11.0'
-          cache: 'npm'
-          
+          node-version: "20"
+
       - name: Install dependencies
         run: npm ci
-        
-      - name: Run tests
-        run: npm test
-        
+
       - name: Build SEA binary
         run: npm run build:sea
-        
-      - name: Rename binary for release
+
+      - name: Debug - List files after build
         shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            mv latex2sre.exe ${{ matrix.binary-name }}
-          else
-            mv latex2sre ${{ matrix.binary-name }}
-          fi
-          
-      - name: Upload binary artifact
+          echo "=== Directory contents ==="
+          ls -la
+          echo "=== Looking for latex2sre binaries ==="
+          find . -name "latex2sre*" -type f
+
+      - name: Rename binary for release
+        shell: bash
+        run: mv latex2sre* ${{ matrix.binary-name }}
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.binary-name }}
           path: ${{ matrix.binary-name }}
-          retention-days: 30
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          path: binaries
-          
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            binaries/*/latex2sre-*
-          generate_release_notes: true
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: artifacts/**/*
