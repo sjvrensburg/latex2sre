@@ -83,7 +83,7 @@ Previously, SEA builds required shipping an external `mathmaps/` folder, breakin
 ## Cross-Platform Notes
 
 - The SEA binary keeps executable mode on Unix (chmod +x) and runs on the platform you built it on.
-- Path handling and temp directory extraction work on Linux, macOS, and Windows.
+- Path handling and temp directory extraction work on Linux.
 
 ## Tests
 

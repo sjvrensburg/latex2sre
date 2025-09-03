@@ -8,23 +8,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: linux-x64
-            binary-name: latex2sre-linux-x64
-          - os: windows-latest
-            target: win32-x64
-            binary-name: latex2sre-windows-x64.exe
-          - os: macos-latest
-            target: darwin-x64
-            binary-name: latex2sre-macos-x64
-          - os: macos-latest
-            target: darwin-arm64
-            binary-name: latex2sre-macos-arm64
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
@@ -46,19 +30,13 @@ jobs:
         run: npm run build:sea
         
       - name: Rename binary for release
-        shell: bash
-        run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            mv latex2sre.exe ${{ matrix.binary-name }}
-          else
-            mv latex2sre ${{ matrix.binary-name }}
-          fi
+        run: mv latex2sre latex2sre-linux-x64
           
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.binary-name }}
-          path: ${{ matrix.binary-name }}
+          name: latex2sre-linux-x64
+          path: latex2sre-linux-x64
           retention-days: 30
 
   release:
