@@ -3,35 +3,28 @@ name: Build and Release SEA Binaries
 on:
   push:
     tags:
-      - 'v*'  # Triggers on version tags like v1.0.0
-  workflow_dispatch:  # Allow manual triggers
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22.11.0'
           cache: 'npm'
-          
       - name: Install dependencies
         run: npm ci
-        
       - name: Run tests
         run: npm test
-        
       - name: Build SEA binary
         run: npm run build:sea
-        
       - name: Rename binary for release
         run: mv latex2sre latex2sre-linux-x64
-          
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
@@ -43,16 +36,15 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    # Add the permissions block here
+    permissions:
+      contents: write # This grants write access to the GITHUB_TOKEN for creating a release
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: binaries
-          
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
